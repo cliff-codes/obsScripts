@@ -30,7 +30,7 @@ end
 
 -- Called every frame (~60 times per second)
 function script_tick(seconds)
-    if debug then obs.script_log(obs.LOG_INFO, "script_tick called, timer_active=" .. tostring(timer_active)) end
+    if debug then obs.script_log(obs.LOG_INFO, "script_tick called, timer_active=" .. tostring(timer_active) .. ", timer_finished=" .. tostring(timer_finished)) end
     if not timer_active and not timer_finished then return end
 
     local now = os.time()
@@ -110,6 +110,22 @@ end
 -- Stop the timer
 function stop_timer(props, prop)
     timer_active = false
+    timer_finished = false
+    blink_state = true
+    last_blink_time = 0
+    
+    -- Clear the text source to stop any ongoing display
+    local source = obs.obs_get_source_by_name(source_name)
+    if source ~= nil then
+        local settings = obs.obs_data_create()
+        obs.obs_data_set_string(settings, "text", "")
+        obs.obs_data_set_int(settings, "color", 0xFFFFFF)
+        obs.obs_source_update(source, settings)
+        obs.obs_data_release(settings)
+        obs.obs_source_release(source)
+    end
+    
+    if debug then obs.script_log(obs.LOG_INFO, "Timer stopped and cleared") end
 end
 
 -- Script properties (UI in OBS)
@@ -120,6 +136,7 @@ function script_properties()
     obs.obs_properties_add_text(props, "end_text", "End Text", obs.OBS_TEXT_DEFAULT)
     obs.obs_properties_add_button(props, "start_button", "Start Timer", start_timer)
     obs.obs_properties_add_button(props, "stop_button", "Stop Timer", stop_timer)
+    obs.obs_properties_add_button(props, "unload_button", "Unload Script", function() obs.script_unload() end)
     return props
 end
 
@@ -145,7 +162,30 @@ Countdown Timer with Blinking and Color Fade
 - Blinks in the last 10 seconds.
 - Gradually turns red as it approaches 0.
 - Fully red and shows end text at 0.
+- Properly stops all processing when timer is stopped.
 
 Set the text source and duration in the script properties.
 ]]
+end
+
+-- Script cleanup when unloaded
+function script_unload()
+    -- Ensure timer is completely stopped
+    timer_active = false
+    timer_finished = false
+    
+    -- Clear any remaining text
+    if source_name ~= "" then
+        local source = obs.obs_get_source_by_name(source_name)
+        if source ~= nil then
+            local settings = obs.obs_data_create()
+            obs.obs_data_set_string(settings, "text", "")
+            obs.obs_data_set_int(settings, "color", 0xFFFFFF)
+            obs.obs_source_update(source, settings)
+            obs.obs_data_release(settings)
+            obs.obs_source_release(source)
+        end
+    end
+    
+    if debug then obs.script_log(obs.LOG_INFO, "Script unloaded and cleaned up") end
 end 
